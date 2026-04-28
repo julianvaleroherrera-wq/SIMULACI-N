@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Hockey simulación MRU </title>
+
+<style>
+body{
+    margin:0;
+    background:#1e1e1e;
+    color:white;
+    font-family:Arial;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+
+#contenedor{
+    display:flex;
+    gap:20px;
+}
+
+canvas{
+    background:#f5f5f5;
+    border:2px solid #444;
+}
+
+#panel{
+    width:220px;
+}
+
+button{
+    width:100%;
+    padding:10px;
+    margin-top:10px;
+    font-weight:bold;
+    cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div id="contenedor">
+
+<canvas id="canvas" width="700" height="500"></canvas>
+
+<div id="panel">
+
+<h3>Control</h3>
+
+<label>Fuerza: <span id="valF">5</span></label>
+<input type="range" id="fuerza" min="1" max="10" value="5">
+
+<label>
+<input type="checkbox" id="aire" checked>
+ Sin fricción
+</label>
+
+<button onclick="golpear()">GOLPEAR</button>
+
+<h3>MRU</h3>
+
+<label>x₀: <span id="valX0">350</span></label>
+<input type="range" id="x0" min="0" max="700" value="350">
+
+<label>v: <span id="valV">2</span></label>
+<input type="range" id="velocidad" min="1" max="10" value="2">
+
+<button onclick="activarMRU()">ACTIVAR MRU</button>
+
+<h3>Datos</h3>
+<div>Velocidad: <span id="vel">0</span></div>
+<div>Aceleración: <span id="acel">0</span></div>
+
+</div>
+
+</div>
+
+<script>
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const fuerzaInput = document.getElementById("fuerza");
+const valF = document.getElementById("valF");
+const aire = document.getElementById("aire");
+
+const velTxt = document.getElementById("vel");
+const acelTxt = document.getElementById("acel");
+
+const x0Input = document.getElementById("x0");
+const vInput = document.getElementById("velocidad");
+
+const valX0 = document.getElementById("valX0");
+const valV = document.getElementById("valV");
+
+// UI
+valF.innerText = fuerzaInput.value;
+valX0.innerText = x0Input.value;
+valV.innerText = vInput.value;
+
+fuerzaInput.oninput = ()=> valF.innerText = fuerzaInput.value;
+x0Input.oninput = ()=> valX0.innerText = x0Input.value;
+vInput.oninput = ()=> valV.innerText = vInput.value;
+
+// FÍSICA
+const MASA = 0.05;
+const ESCALA = 120;
+const MU = 0.2;
+const G = 9.8;
+
+let disco = {x:350,y:250,vx:0,vy:0};
+
+let modoMRU = false;
+let tiempoMRU = 0;
+
+// GOLPE
+function golpear(){
+    modoMRU = false;
+
+    let F = parseFloat(fuerzaInput.value);
+    let t = 0.1;
+
+    let v = (F*t)/MASA * ESCALA;
+
+    let ang = Math.random()*Math.PI*2;
+
+    disco.vx = Math.cos(ang)*v;
+    disco.vy = Math.sin(ang)*v;
+}
+
+// ACTIVAR MRU
+function activarMRU(){
+    modoMRU = true;
+    tiempoMRU = 0;
+
+    disco.x = parseFloat(x0Input.value);
+    disco.y = 250;
+
+    disco.vx = parseFloat(vInput.value) * ESCALA;
+    disco.vy = 0;
+}
+
+// PISTA
+function dibujarPista(){
+
+    ctx.clearRect(0,0,700,500);
+
+    ctx.fillStyle="#f5f5f5";
+    ctx.fillRect(0,0,700,500);
+
+    ctx.fillStyle="#ccc";
+    for(let x=10;x<700;x+=15){
+        for(let y=10;y<500;y+=15){
+            ctx.beginPath();
+            ctx.arc(x,y,1,0,Math.PI*2);
+            ctx.fill();
+        }
+    }
+
+    ctx.strokeStyle="black";
+    ctx.lineWidth=4;
+    ctx.strokeRect(5,5,690,490);
+
+    ctx.beginPath();
+    ctx.moveTo(350,0);
+    ctx.lineTo(350,500);
+    ctx.strokeStyle="red";
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(250,0);
+    ctx.lineTo(250,500);
+
+    ctx.moveTo(450,0);
+    ctx.lineTo(450,500);
+
+    ctx.strokeStyle="blue";
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(350,250,60,0,Math.PI*2);
+    ctx.strokeStyle="blue";
+    ctx.stroke();
+
+    ctx.fillStyle="#333";
+    ctx.fillRect(5,200,15,100);
+    ctx.fillRect(680,200,15,100);
+}
+
+// DISCO
+function dibujarDisco(){
+    ctx.beginPath();
+    ctx.arc(disco.x,disco.y,20,0,Math.PI*2);
+    ctx.fillStyle="#111";
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(disco.x,disco.y,5,0,Math.PI*2);
+    ctx.fillStyle="red";
+    ctx.fill();
+}
+
+// VECTOR
+function vector(){
+    let v = Math.hypot(disco.vx,disco.vy);
+    if(v<5) return;
+
+    ctx.beginPath();
+    ctx.moveTo(disco.x,disco.y);
+    ctx.lineTo(disco.x+disco.vx*0.1,disco.y+disco.vy*0.1);
+    ctx.strokeStyle="red";
+    ctx.stroke();
+}
+
+// LOOP
+let last = performance.now();
+
+function loop(t){
+
+    let dt = (t-last)/1000;
+    last = t;
+
+    let v = Math.hypot(disco.vx,disco.vy);
+
+    if(modoMRU){
+        tiempoMRU += dt;
+
+        let vel = parseFloat(vInput.value) * ESCALA;
+
+        disco.x = parseFloat(x0Input.value) + vel * tiempoMRU;
+
+        velTxt.innerText = (vel/ESCALA).toFixed(2)+" m/s";
+        acelTxt.innerText = "0 m/s²";
+
+    }else{
+
+        if(!aire.checked && v>0){
+
+            let a = MU*G*ESCALA;
+            let perdida = a*dt;
+
+            if(v<perdida){
+                disco.vx=0;
+                disco.vy=0;
+            }else{
+                let f = (v-perdida)/v;
+                disco.vx*=f;
+                disco.vy*=f;
+            }
+
+            acelTxt.innerText = (-MU*G).toFixed(2)+" m/s²";
+
+        }else{
+            acelTxt.innerText = "0";
+        }
+
+        disco.x += disco.vx*dt;
+        disco.y += disco.vy*dt;
+
+        velTxt.innerText = (v/ESCALA).toFixed(2)+" m/s";
+    }
+
+    // rebotes
+    if(disco.x<20||disco.x>680) disco.vx*=-1;
+    if(disco.y<20||disco.y>480) disco.vy*=-1;
+
+    dibujarPista();
+    dibujarDisco();
+    vector();
+
+    requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+
+</script>
+
+</body>
+</html>
